@@ -49,6 +49,18 @@
             <artifactId>opencv</artifactId>
             <version>4.5.1-2</version>
         </dependency>
+        <!-- https://mvnrepository.com/artifact/gov.nasa/worldwind -->
+        <dependency>
+            <groupId>gov.nasa</groupId>
+            <artifactId>worldwind</artifactId>
+            <version>2.0.0-986</version>
+        </dependency>
+        <dependency>
+            <groupId>gov.nasa</groupId>
+            <artifactId>worldwindx</artifactId>
+            <version>2.0.0-986</version>
+        </dependency>
+
     </dependencies>
 
 </project>

@@ -3,10 +3,11 @@ package com.crossinx.UI.openCV;
 import com.crossinx.UI.Image;
 import nu.pattern.OpenCV;
 import org.opencv.core.*;
-import org.opencv.core.Point;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
+import org.opencv.imgproc.Moments;
 import org.opencv.photo.Photo;
+import org.opencv.videoio.VideoCapture;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -16,8 +17,8 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
-import static org.opencv.calib3d.Calib3d.findHomography;
 import static org.opencv.core.CvType.CV_32F;
 import static org.opencv.video.Video.MOTION_EUCLIDEAN;
 import static org.opencv.video.Video.findTransformECC;
@@ -37,15 +38,12 @@ public class OpenCVService {
 
         }
 
-        Mat src = Imgcodecs.imread(file.getAbsolutePath());
+        Mat src = Imgcodecs.imread(file.getAbsolutePath(), CV_32F);
+//        Imgcodecs.imread(file.getAbsolutePath(), CV_32F);
 
         Mat dst = new Mat();
 
-
-//        findHomography();
-
-//        Photo.fastNlMeansDenoising(src, dst);
-//        alignImages(src,dst, bufferedImage);
+//        adjustImg(src);
 
 
 
@@ -58,15 +56,15 @@ public class OpenCVService {
                 allContours,
                 new Mat(processImage.size(), processImage.type()),
                 Imgproc.RETR_EXTERNAL,
-                Imgproc.CHAIN_APPROX_NONE
+                Imgproc.CHAIN_APPROX_SIMPLE
         );
 
         Imgproc.drawContours(
                 src,
                 allContours,
                 -1, // Negative value indicates that we want to draw all of contours
-                new Scalar(124, 252, 0), // Green color
-                1
+                new Scalar(0, 252, 0), // Green color
+                10
         );
 
 
@@ -78,19 +76,19 @@ public class OpenCVService {
 
         Imgcodecs.imwrite("C:\\Users\\veaceslav.gargaun\\Downloads\\pdf\\test-rotate.png", src);
 
-        System.out.println("Image Rotated Successfully");
     }
 
-    public Mat processImage(final Mat mat) {
+    public static Mat processImage(final Mat mat) {
         final Mat processed = new Mat(mat.height(), mat.width(), mat.type());
 
         Imgproc.GaussianBlur(mat, processed, new Size(7, 7), 1);
 
         Imgproc.cvtColor(processed, processed, Imgproc.COLOR_RGB2GRAY);
 
-        Imgproc.Canny(processed, processed, 200, 25);
+        Imgproc.Canny(processed, processed, 100, 10);
 
-        Imgproc.dilate(processed, processed, new Mat(), new Point(-1, -1), 1);
+        Imgproc.dilate(processed, processed, new Mat(), new Point(-1, -1), 2);
+//        Imgproc.erode(processed, processed, 1);
 
         return processed;
     }
@@ -151,19 +149,13 @@ public class OpenCVService {
 
     public static void alignImages(Mat A, Mat B, BufferedImage bufferedImage){
         final int warp_mode = MOTION_EUCLIDEAN;
-//        Mat matA = new Mat(A.getHeight(),A.getWidth(), CvType.CV_8UC3);
-//        Mat matAgray = new Mat(A.getHeight(),A.getWidth(), CvType.CV_8U);
-//        Mat matB = new Mat(B.getHeight(),B.getWidth(), CvType.CV_8UC3);
-
         Mat matBgray = new Mat(bufferedImage.getHeight(), bufferedImage.getWidth(), CvType.CV_8U);
 
-//        Mat matBaligned = new Mat(A.getHeight(),A.getWidth(), CvType.CV_8UC3);
         Mat warpMatrix = Mat.eye(3,3,CV_32F);
 
 
 
         Imgproc.cvtColor(A,A, Imgproc.COLOR_BGR2GRAY);
-//        Imgproc.cvtColor(A,A,Imgproc.COLOR_BGR2GRAY);
 
         int numIter = 5000;
         double terminationEps = 1e-10;
@@ -177,7 +169,119 @@ public class OpenCVService {
 
         Photo photo = new Photo();
 
-
     }
+
+    private static void adjustImg(Mat scr){
+        VideoCapture camera = new VideoCapture(1);
+
+        Mat processedImage = processImage(scr);
+
+
+        final List<MatOfPoint> allContours = new ArrayList<>();
+        Imgproc.findContours(
+                processedImage,
+                allContours,
+                new Mat(processedImage.size(), processedImage.type()),
+                Imgproc.RETR_EXTERNAL,
+                Imgproc.CHAIN_APPROX_SIMPLE
+
+        );
+
+        AtomicReference<MatOfPoint> aux = new AtomicReference<>(allContours.get(0));
+        allContours.forEach(contour->{
+            if(Imgproc.contourArea(contour) > Imgproc.contourArea(aux.get()))
+                aux.set(contour);
+        });
+
+        List<MatOfPoint> listContour = new ArrayList();
+        Mat matrix = new Mat();
+
+        MatOfPoint2f sortedPoints = createSortedPoints(aux.get());
+
+        MatOfPoint2f dstMatOfPoint = new MatOfPoint2f(
+                new Point(0, 0),
+                new Point(450-1,0),
+                new Point(0,450-1),
+                new Point(450-1,450-1)
+        );
+
+
+
+        Imgproc.getPerspectiveTransform(sortedPoints, dstMatOfPoint);
+        Mat dst = new Mat(CV_32F);
+        Imgproc.warpPerspective(scr, dst, sortedPoints, scr.size(), Imgproc.INTER_LINEAR);
+
+        listContour.add(aux.get());
+        Imgproc.drawContours(
+                scr,
+                listContour,
+                -1, // Negative value indicates that we want to draw all of contours
+                new Scalar(124, 252, 0), // Green color
+                1
+        );
+
+
+
+        System.out.println();
+    }
+
+    private static MatOfPoint2f createSortedPoints(MatOfPoint matOfPoint){
+
+        MatOfPoint2f  m2f = new MatOfPoint2f(matOfPoint.toArray());
+        double arc = Imgproc.arcLength(m2f, true);
+        MatOfPoint2f approx = new MatOfPoint2f();
+        Imgproc.approxPolyDP(m2f, approx, arc*0.02, true);
+
+
+        Moments moment = Imgproc.moments(approx.col(0));
+        int x = (int) (moment.get_m10() / moment.get_m00());
+        int y = (int) (moment.get_m01() / moment.get_m00());
+
+
+
+        Point[] sortedPoints = new Point[4];
+
+        double[] data;
+        int count = 0;
+        for(int i=0; i<approx.col(0).rows(); i++){
+            data = approx.col(0).get(i, 0);
+            double datax = data[0];
+            double datay = data[1];
+            if(datax < x && datay < y){
+                sortedPoints[0]=new Point(datax,datay);
+                count++;
+            }else if(datax > x && datay < y){
+                sortedPoints[1]=new Point(datax,datay);
+                count++;
+            }else if (datax < x && datay > y){
+                sortedPoints[2]=new Point(datax,datay);
+                count++;
+            }else if (datax > x && datay > y){
+                sortedPoints[3]=new Point(datax,datay);
+                count++;
+            }
+        }
+
+
+        MatOfPoint2f src = new MatOfPoint2f(
+                sortedPoints[0],
+                sortedPoints[1],
+                sortedPoints[2],
+                sortedPoints[3]);
+        return  src;
+    }
+
+//    public Mat transform(Mat src, MatOfPoint2f corners) {
+//        MatOfPoint2f sortedCorners = sortCorners(corners);
+//        Size size = getRectangleSize(sortedCorners);
+//
+//        Mat result = Mat.zeros(size, src.type());
+//        MatOfPoint2f imageOutline = getOutline(result);
+//
+//        Mat transformation = Imgproc.getPerspectiveTransform(sortedCorners, imageOutline);
+//        Imgproc.warpPerspective(src, result, transformation, size);
+//
+//        return result;
+//    }
 
 }
