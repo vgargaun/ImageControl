@@ -14,11 +14,10 @@ import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
 import java.awt.image.WritableRaster;
 import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Optional.empty;
 import static org.opencv.core.CvType.CV_32F;
 import static org.opencv.video.Video.MOTION_EUCLIDEAN;
 import static org.opencv.video.Video.findTransformECC;
@@ -46,8 +45,6 @@ public class OpenCVService {
 //        adjustImg(src);
 
 
-
-
         Mat processImage = processImage(src);
 
         final List<MatOfPoint> allContours = new ArrayList<>();
@@ -59,22 +56,70 @@ public class OpenCVService {
                 Imgproc.CHAIN_APPROX_SIMPLE
         );
 
+//        final double value = Imgproc.contourArea(allContours.get(0));
+//        final Rect rect = Imgproc.boundingRect(allContours.get(0));
+        List<MatOfPoint> contours = new ArrayList<>();
+        allContours.forEach(contour -> {
+            double area = Imgproc.contourArea(contour);
+            Rect rect = Imgproc.boundingRect(contour);
+
+//            if(area > 1500 && area < 2000) contours.add(contour);
+            if (rect.height > 22 && rect.height < 35
+                    && rect.width > 100 && rect.width < 600) {
+                Point[] points = contour.toArray();
+                Point minPoint = points[0];
+                Point maxPoint = points[0];
+//                for (int i = 0; i < points.length; i++) {
+//                    if (minPoint.x > points[i].x) minPoint = points[i];
+//                    if (maxPoint.x < points[i].x) maxPoint = points[i];
+//                }
+
+                int v = ((int) points.length / 10);
+
+//                List<Point> yMinPointList = new ArrayList<>();
+////                for(int i = 5; i < points.length/2-5; i++){
+////                    yMinPointList.add(points[i]);
+////
+////                }
+//                yMinPointList.add(points[5]);
+//                yMinPointList.add(points[17]);
+//                int i = 0;
+//                while (i + v < points.length) {
+//                    Point yMax = points[i];
+//                    for (int j = i; j < i + v; j++) {
+//                        if (yMax.y < points[j].y) yMax = points[j];
+//                    }
+//                    yMinPointList.add(yMax);
+//                    i += v;
+//                }
+//                contour.fromList(yMinPointList);
+                List<Point> pointsTest = new ArrayList<>();
+                pointsTest.add(new Point(rect.x, rect.y));
+                pointsTest.add(new Point(rect.x, rect.y + rect.height));
+                pointsTest.add(new Point(rect.x + rect.width, rect.y + rect.height));
+                pointsTest.add(new Point(rect.x + rect.width, rect.y));
+                HashMap<Object, Object> objectObjectHashMap = new HashMap<>();
+
+                MatOfPoint matOfPoint = new MatOfPoint();
+                matOfPoint.fromList(pointsTest);
+                contours.add(matOfPoint);
+            }
+        });
+
+//        Imgproc.drawMarker(src,);
+
         Imgproc.drawContours(
                 src,
-                allContours,
+                contours,
                 -1, // Negative value indicates that we want to draw all of contours
                 new Scalar(0, 252, 0), // Green color
-                10
+                1
         );
-
-
-        final double value = Imgproc.contourArea(allContours.get(0));
-        final Rect rect = Imgproc.boundingRect(allContours.get(0));
 
 
         ocr(bufferedImage, allContours.get(0));
 
-        Imgcodecs.imwrite("C:\\Users\\veaceslav.gargaun\\Downloads\\pdf\\test-rotate.png", src);
+        Imgcodecs.imwrite("test-rotate.png", src);
 
     }
 
@@ -120,11 +165,10 @@ public class OpenCVService {
 
     private void stabil(Mat src, Mat dst, List<MatOfPoint> allContours) {
 
-        Optional<MatOfPoint> first = allContours.stream().filter(contours -> Imgproc.boundingRect(contours).width>100)
+        Optional<MatOfPoint> first = allContours.stream().filter(contours -> Imgproc.boundingRect(contours).width > 100)
                 .findFirst();
 
         Rect rect = Imgproc.boundingRect(first.get());
-
 
 
         double angle = 0;
@@ -143,26 +187,25 @@ public class OpenCVService {
 
     }
 
-    private void adjust(){
+    private void adjust() {
 
     }
 
-    public static void alignImages(Mat A, Mat B, BufferedImage bufferedImage){
+    public static void alignImages(Mat A, Mat B, BufferedImage bufferedImage) {
         final int warp_mode = MOTION_EUCLIDEAN;
         Mat matBgray = new Mat(bufferedImage.getHeight(), bufferedImage.getWidth(), CvType.CV_8U);
 
-        Mat warpMatrix = Mat.eye(3,3,CV_32F);
+        Mat warpMatrix = Mat.eye(3, 3, CV_32F);
 
 
-
-        Imgproc.cvtColor(A,A, Imgproc.COLOR_BGR2GRAY);
+        Imgproc.cvtColor(A, A, Imgproc.COLOR_BGR2GRAY);
 
         int numIter = 5000;
         double terminationEps = 1e-10;
-        TermCriteria criteria = new TermCriteria(TermCriteria.COUNT+TermCriteria.EPS,numIter,terminationEps);
+        TermCriteria criteria = new TermCriteria(TermCriteria.COUNT + TermCriteria.EPS, numIter, terminationEps);
 
 
-        findTransformECC(A,B,warpMatrix,warp_mode, criteria, matBgray, 5);
+        findTransformECC(A, B, warpMatrix, warp_mode, criteria, matBgray, 5);
 
         System.out.println();
 //        Imgproc.warpPerspective(matA,matBaligned,warpMatrix,matA.size(),Imgproc.INTER_LINEAR+ Imgproc.WARP_INVERSE_MAP);
@@ -171,7 +214,7 @@ public class OpenCVService {
 
     }
 
-    private static void adjustImg(Mat scr){
+    private static void adjustImg(Mat scr) {
         VideoCapture camera = new VideoCapture(1);
 
         Mat processedImage = processImage(scr);
@@ -188,8 +231,8 @@ public class OpenCVService {
         );
 
         AtomicReference<MatOfPoint> aux = new AtomicReference<>(allContours.get(0));
-        allContours.forEach(contour->{
-            if(Imgproc.contourArea(contour) > Imgproc.contourArea(aux.get()))
+        allContours.forEach(contour -> {
+            if (Imgproc.contourArea(contour) > Imgproc.contourArea(aux.get()))
                 aux.set(contour);
         });
 
@@ -200,11 +243,10 @@ public class OpenCVService {
 
         MatOfPoint2f dstMatOfPoint = new MatOfPoint2f(
                 new Point(0, 0),
-                new Point(450-1,0),
-                new Point(0,450-1),
-                new Point(450-1,450-1)
+                new Point(450 - 1, 0),
+                new Point(0, 450 - 1),
+                new Point(450 - 1, 450 - 1)
         );
-
 
 
         Imgproc.getPerspectiveTransform(sortedPoints, dstMatOfPoint);
@@ -221,16 +263,15 @@ public class OpenCVService {
         );
 
 
-
         System.out.println();
     }
 
-    private static MatOfPoint2f createSortedPoints(MatOfPoint matOfPoint){
+    private static MatOfPoint2f createSortedPoints(MatOfPoint matOfPoint) {
 
-        MatOfPoint2f  m2f = new MatOfPoint2f(matOfPoint.toArray());
+        MatOfPoint2f m2f = new MatOfPoint2f(matOfPoint.toArray());
         double arc = Imgproc.arcLength(m2f, true);
         MatOfPoint2f approx = new MatOfPoint2f();
-        Imgproc.approxPolyDP(m2f, approx, arc*0.02, true);
+        Imgproc.approxPolyDP(m2f, approx, arc * 0.02, true);
 
 
         Moments moment = Imgproc.moments(approx.col(0));
@@ -238,26 +279,25 @@ public class OpenCVService {
         int y = (int) (moment.get_m01() / moment.get_m00());
 
 
-
         Point[] sortedPoints = new Point[4];
 
         double[] data;
         int count = 0;
-        for(int i=0; i<approx.col(0).rows(); i++){
+        for (int i = 0; i < approx.col(0).rows(); i++) {
             data = approx.col(0).get(i, 0);
             double datax = data[0];
             double datay = data[1];
-            if(datax < x && datay < y){
-                sortedPoints[0]=new Point(datax,datay);
+            if (datax < x && datay < y) {
+                sortedPoints[0] = new Point(datax, datay);
                 count++;
-            }else if(datax > x && datay < y){
-                sortedPoints[1]=new Point(datax,datay);
+            } else if (datax > x && datay < y) {
+                sortedPoints[1] = new Point(datax, datay);
                 count++;
-            }else if (datax < x && datay > y){
-                sortedPoints[2]=new Point(datax,datay);
+            } else if (datax < x && datay > y) {
+                sortedPoints[2] = new Point(datax, datay);
                 count++;
-            }else if (datax > x && datay > y){
-                sortedPoints[3]=new Point(datax,datay);
+            } else if (datax > x && datay > y) {
+                sortedPoints[3] = new Point(datax, datay);
                 count++;
             }
         }
@@ -268,7 +308,7 @@ public class OpenCVService {
                 sortedPoints[1],
                 sortedPoints[2],
                 sortedPoints[3]);
-        return  src;
+        return src;
     }
 
 //    public Mat transform(Mat src, MatOfPoint2f corners) {

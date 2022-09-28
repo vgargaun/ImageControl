@@ -71,7 +71,7 @@ public class OcrWorker {
 
     private static TessBaseAPI initiateTessBaseApi() throws Exception {
         TessBaseAPI api = new TessBaseAPI();
-        if (api.Init("D:\\workspace\\FxTests\\tesseract-4.1.0\\tessdata", "eng") != 0) {
+        if (api.Init("D:\\workspace\\ImageControl\\tesseract-4.1.0\\tessdata", "eng") != 0) {
             throw new Exception("Could not initialize tesseract.");
         }
         return api;
